@@ -1,0 +1,347 @@
+
+// function LineCastle() {
+//   const [geometries, setGeometries] = useState([]);
+//   const [progress, setProgress] = useState(0);
+
+//   useEffect(() => {
+//     const loader = new SVGLoader();
+//     loader.load('/castle.svg', (data) => {
+//       const newGeometries = [];
+//       data.paths.forEach((path) => {
+//         // ベースのSVGパス
+//         const basePoints = [];
+//         path.subPaths.forEach((subPath) => {
+//           basePoints.push(...subPath.getPoints());
+//         });
+//         if (basePoints.length > 0) {
+//           const baseGeometry = new THREE.BufferGeometry().setFromPoints(basePoints);
+//           newGeometries.push({ type: 'base', geometry: baseGeometry });
+//         }
+
+//         // サブパス（頂点同士を結ぶ線）
+//         path.subPaths.forEach((subPath) => {
+//           const subPoints = subPath.getPoints();
+//           if (subPoints.length > 1) {
+//             const subGeometry = new THREE.BufferGeometry().setFromPoints([subPoints[0], subPoints[subPoints.length - 1]]);
+//             newGeometries.push({ type: 'sub', geometry: subGeometry });
+//           }
+//         });
+//       });
+//       setGeometries(newGeometries);
+//     });
+//   }, []);
+
+//   useFrame((state, delta) => {
+//     setProgress((prev) => Math.min(prev + delta * 0.2, 1));
+//   });
+
+//   const { totalLength, lineDistances } = useMemo(() => {
+//     let total = 0;
+//     const distances = [];
+//     geometries.forEach(({ geometry }) => {
+//       const positionAttribute = geometry.getAttribute('position');
+//       for (let i = 1; i < positionAttribute.count; i++) {
+//         const start = new THREE.Vector3().fromBufferAttribute(positionAttribute, i - 1);
+//         const end = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
+//         const length = start.distanceTo(end);
+//         total += length;
+//         distances.push(total);
+//       }
+//     });
+//     return { totalLength: total, lineDistances: distances };
+//   }, [geometries]);
+
+//   useEffect(() => {
+//     geometries.forEach(({ geometry }) => {
+//       if (geometry && lineDistances.length > 0) {
+//         geometry.setAttribute(
+//           'lineDistance',
+//           new THREE.BufferAttribute(new Float32Array(lineDistances), 1)
+//         );
+//       }
+//     });
+//   }, [geometries, lineDistances]);
+
+//   const baseMaterial = useMemo(() => {
+//     return new THREE.ShaderMaterial({
+//       uniforms: {
+//         uProgress: { value: progress },
+//         uTotalLength: { value: totalLength },
+//         color: { value: new THREE.Color(0x00ffff) },
+//       },
+//       vertexShader: `
+//         attribute float lineDistance;
+//         varying float vLineDistance;
+//         void main() {
+//           vLineDistance = lineDistance;
+//           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+//         }
+//       `,
+//       fragmentShader: `
+//         uniform float uProgress;
+//         uniform float uTotalLength;
+//         uniform vec3 color;
+//         varying float vLineDistance;
+//         void main() {
+//           float alpha = step(vLineDistance / uTotalLength, uProgress);
+//           gl_FragColor = vec4(color, alpha * 0.3);
+//         }
+//       `,
+//       transparent: true,
+//     });
+//   }, [progress, totalLength]);
+
+//   const subMaterial = useMemo(() => {
+//     return new THREE.ShaderMaterial({
+//       uniforms: {
+//         uProgress: { value: progress },
+//         uTotalLength: { value: totalLength },
+//         color: { value: new THREE.Color(0x00ffff) },
+//       },
+//       vertexShader: `
+//         attribute float lineDistance;
+//         varying float vLineDistance;
+//         void main() {
+//           vLineDistance = lineDistance;
+//           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+//         }
+//       `,
+//       fragmentShader: `
+//         uniform float uProgress;
+//         uniform float uTotalLength;
+//         uniform vec3 color;
+//         varying float vLineDistance;
+//         void main() {
+//           float alpha = step(vLineDistance / uTotalLength, uProgress);
+//           gl_FragColor = vec4(color, alpha * 0.01);
+//         }
+//       `,
+//       transparent: true,
+//     });
+//   }, [progress, totalLength]);
+
+//   return (
+//     <group>
+//       {geometries.map((item, index) => (
+//         <line key={index} geometry={item.geometry} material={item.type === 'base' ? baseMaterial : subMaterial} />
+//       ))}
+//     </group>
+//   );
+// }
+
+
+
+// function LineCastle() {
+//   const [paths, setPaths] = useState([]);
+//   const [progress, setProgress] = useState(0);
+
+//   useEffect(() => {
+//     const loader = new SVGLoader();
+//     loader.load('/castle.svg', (data) => {
+//       setPaths(data.paths);
+//     });
+//   }, []);
+
+//   useFrame((state, delta) => {
+//     setProgress((prev) => Math.min(prev + delta * 0.2, 1)); // アニメーション速度を調整
+//   });
+
+//   return (
+//     <group>
+//       {paths.map((path, pathIndex) => (
+//         <group key={pathIndex}>
+//           {path.subPaths.map((subPath, subPathIndex) => {
+//             const points = subPath.getPoints();
+//             const geometry = new THREE.BufferGeometry().setFromPoints(points);
+//             const totalLength = subPath.getLength();
+//             const dashArray = totalLength;
+//             const dashOffset = totalLength * (1 - progress);
+
+//             return (
+//               <line key={`${pathIndex}-${subPathIndex}`} geometry={geometry}>
+//                 <lineDashedMaterial
+//                   attach="material"
+//                   color={0x00ffff}
+//                   linewidth={1}
+//                   scale={1}
+//                   dashSize={dashArray}
+//                   gapSize={totalLength}
+//                   dashOffset={dashOffset}
+//                   transparent={true}
+//                   opacity={0.3} // 不透明度を下げる
+//                 />
+//               </line>
+//             );
+//           })}
+//         </group>
+//       ))}
+//     </group>
+//   );
+// }
+
+// safe
+
+
+// function LineCastle() {
+//   const [geometries, setGeometries] = useState([]);
+//   const [progress, setProgress] = useState(0);
+
+//   useEffect(() => {
+//     const loader = new SVGLoader();
+//     loader.load('/castle.svg', (data) => {
+//       const newGeometries = [];
+
+//       data.paths.forEach((path) => {
+//         const shapes = SVGLoader.createShapes(path);
+//         shapes.forEach((shape) => {
+//           const geometry = new THREE.ShapeGeometry(shape);
+//           newGeometries.push({ geometry, type: 'fill' });
+//         });
+
+//         path.subPaths.forEach((subPath) => {
+//           let subPoints = subPath.getPoints();
+
+//           // 重複する最初のポイントを削除
+//           if (subPoints.length > 0 && newGeometries.length > 0) {
+//             const lastGeometry = newGeometries[newGeometries.length - 1];
+//             if (lastGeometry.type === 'line') {
+//               const lastPoints = lastGeometry.geometry.getAttribute('position');
+//               if (lastPoints.count > 0) {
+//                 const lastPoint = new THREE.Vector3(
+//                   lastPoints.getX(lastPoints.count - 1),
+//                   lastPoints.getY(lastPoints.count - 1),
+//                   lastPoints.getZ(lastPoints.count - 1)
+//                 );
+//                 if (lastPoint.equals(new THREE.Vector3(subPoints[0].x, subPoints[0].y, subPoints[0].z))) {
+//                   subPoints.shift();
+//                 }
+//               }
+//             }
+//           }
+
+//           if (subPoints.length > 0) {
+//             const geometry = new THREE.BufferGeometry().setFromPoints(subPoints);
+//             newGeometries.push({ geometry, type: 'line' });
+//           }
+//         });
+//       });
+
+//       setGeometries(newGeometries);
+//     });
+//   }, []);
+
+//   useFrame((state, delta) => {
+//     setProgress((prev) => Math.min(prev + delta * 0.2, 1)); // アニメーション速度を調整
+//   });
+
+//   // 総距離と各ポイントの累積距離を計算
+//   const { totalLength, lineDistances } = useMemo(() => {
+//     let total = 0;
+//     const distances = [];
+
+//     geometries.forEach((item) => {
+//       if (item.type === 'line') {
+//         const position = item.geometry.getAttribute('position');
+//         const points = [];
+//         for (let i = 0; i < position.count; i++) {
+//           points.push(
+//             new THREE.Vector3(
+//               position.getX(i),
+//               position.getY(i),
+//               position.getZ(i)
+//             )
+//           );
+//         }
+
+//         for (let i = 1; i < points.length; i++) {
+//           total += points[i - 1].distanceTo(points[i]);
+//           distances.push(total);
+//         }
+//       }
+//     });
+
+//     return {
+//       totalLength: total,
+//       lineDistances: distances,
+//     };
+//   }, [geometries]);
+
+//   // lineDistance属性を設定
+//   useEffect(() => {
+//     geometries.forEach((item) => {
+//       if (item.type === 'line' && item.geometry && lineDistances.length > 0) {
+//         item.geometry.setAttribute(
+//           'lineDistance',
+//           new THREE.BufferAttribute(new Float32Array(lineDistances.slice(item.geometry.index ? item.geometry.index.count : 0)), 1)
+//         );
+//       }
+//     });
+//   }, [geometries, lineDistances]);
+
+//   // シェーダーマテリアルを使用して、総距離に基づいて描画
+//   const lineMaterial = useMemo(() => {
+//     return new THREE.ShaderMaterial({
+//       uniforms: {
+//         uProgress: { value: progress },
+//         uTotalLength: { value: totalLength },
+//         color: { value: new THREE.Color(0x00ffff) },
+//       },
+//       vertexShader: `
+//         attribute float lineDistance;
+//         varying float vLineDistance;
+//         void main() {
+//           vLineDistance = lineDistance;
+//           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+//         }
+//       `,
+//       fragmentShader: `
+//         uniform float uProgress;
+//         uniform float uTotalLength;
+//         uniform vec3 color;
+//         varying float vLineDistance;
+//         void main() {
+//           float alpha = step(vLineDistance / uTotalLength, uProgress);
+//           gl_FragColor = vec4(color, alpha * 0.3);
+//         }
+//       `,
+//       transparent: true,
+//     });
+//   }, [progress, totalLength]);
+
+//   const fillMaterial = useMemo(() => {
+//     return new THREE.ShaderMaterial({
+//       uniforms: {
+//         uProgress: { value: progress },
+//         color: { value: new THREE.Color(0x00ffff) },
+//       },
+//       vertexShader: `
+//         void main() {
+//           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+//         }
+//       `,
+//       fragmentShader: `
+//         uniform float uProgress;
+//         uniform vec3 color;
+//         void main() {
+//           gl_FragColor = vec4(color, 0.05 * uProgress);
+//         }
+//       `,
+//       transparent: true,
+//       side: THREE.DoubleSide,
+//     });
+//   }, [progress]);
+
+//   if (geometries.length === 0) return null;
+
+//   return (
+//     <group>
+//       {geometries.map((item, index) => (
+//         item.type === 'line' ? (
+//           <line key={index} geometry={item.geometry} material={lineMaterial} />
+//         ) : (
+//           <mesh key={index} geometry={item.geometry} material={fillMaterial} />
+//         )
+//       ))}
+//     </group>
+//   );
+// }
