@@ -37,7 +37,7 @@ function ParticleWave() {
   // Define noise3D within the ParticleWave component
   const noise3D = useMemo(() => createNoise3D(), []);
 
-  const count = 80000;
+  const count = 100000;
   const radius = 5;
   const height = 10;
   const speed = 0.8; // 速度を上げて、粒子より早く集約するようにする
@@ -105,7 +105,7 @@ function ParticleWave() {
       <pointsMaterial
         map={imgTex}
         color={0x66ffff}
-        size={0.015} // サイズを0.02から0.01減少
+        size={0.015} // サイズを0.02から0.01少
         sizeAttenuation
         transparent={true}
         opacity={0.3}
@@ -219,9 +219,9 @@ function MagicCircle({ fadeOut, fadeIn, scale }) {
     return new Float32Array(positions);
   }, [count, radius, innerRadius]);
 
-  const rotationSpeed = useRef(0.0005); // 初期回転速度
-  const maxRotationSpeed = 0.002; // 最大回転速度を増加
-  const rotationAcceleration = 0.000002; // 加速��を加
+  const rotationSpeed = useRef(0.0008); // 初期回転速度を少し上げる（0.0005から0.0008に）
+  const maxRotationSpeed = 0.003; // 最大回転速度を少し上げる（0.002から0.003に）
+  const rotationAcceleration = 0.000003; // 加速度も少し上げる（0.000002から0.000003に）
 
   useFrame(({ clock }) => {
     const time = clock.getElapsedTime();
@@ -527,6 +527,83 @@ function ParticleCube({ size = 2, particleCount = 20000 }) {
   );
 }
 
+// 新しい ParticleBackground コンポーネントを追加
+function ParticleBackground({ count = 80000, radius = 5, height = 10, speed = 0.8, spiralSpeed = 0.3, flowIntensity = 0.05 }) {
+  const pointsRef = useRef();
+  const imgTex = useLoader(THREE.TextureLoader, circleImg);
+  const noise3D = useMemo(() => createNoise3D(), []);
+
+  const positions = useMemo(() => {
+    const positions = [];
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.3) * radius;
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = (Math.random() * 2 - 1) * height * 0.5;
+      const z = r * Math.sin(phi) * Math.sin(theta);
+      positions.push(x, y, z);
+    }
+    return new Float32Array(positions);
+  }, [count, radius, height]);
+
+  useFrame(({ clock }) => {
+    const time = clock.getElapsedTime();
+    const positionsArray = pointsRef.current.array;
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      let x = positionsArray[i3];
+      let y = positionsArray[i3 + 1];
+      let z = positionsArray[i3 + 2];
+
+      const noise = noise3D(x * 0.5, y * 0.5, z * 0.5 + time * 0.2) * flowIntensity;
+      const angle = Math.atan2(z, x) + spiralSpeed * 0.02 + noise;
+      const r = Math.sqrt(x * x + z * z);
+      
+      x = r * Math.cos(angle);
+      z = r * Math.sin(angle);
+      y += speed * 0.02 * (1 + noise);
+
+      if (y > height / 2) {
+        y = -height / 2;
+        const newTheta = Math.random() * Math.PI * 2;
+        const newPhi = Math.acos(2 * Math.random() - 1);
+        const newR = Math.random() * radius;
+        x = newR * Math.sin(newPhi) * Math.cos(newTheta);
+        z = newR * Math.sin(newPhi) * Math.sin(newTheta);
+      }
+
+      positionsArray[i3] = x;
+      positionsArray[i3 + 1] = y;
+      positionsArray[i3 + 2] = z;
+    }
+    pointsRef.current.needsUpdate = true;
+  });
+
+  return (
+    <points frustumCulled={false}>
+      <bufferGeometry>
+        <bufferAttribute
+          ref={pointsRef}
+          attach="attributes-position"
+          array={positions}
+          count={positions.length / 3}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <pointsMaterial
+        map={imgTex}
+        color={0x66ffff}
+        size={0.015}
+        sizeAttenuation
+        transparent={true}
+        opacity={0.3}
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
+  );
+}
+
 function AnimationCanvas() {
   const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [showLogo, setShowLogo] = useState(false);
@@ -709,7 +786,12 @@ function AnimationCanvas() {
             scale={magicCircleScale}
           />
         )}
-        {showCube && <ParticleCube size={3} particleCount={30000} />}
+        {showCube && (
+          <>
+            <ParticleCube size={3} particleCount={30000} />
+            <ParticleBackground count={80000} radius={5} height={10} speed={0.8} spiralSpeed={0.3} flowIntensity={0.05} />
+          </>
+        )}
         <ParticleBand yPosition={-4.5} color={0x66ffff} count={50000} height={0.4} />
         <Lightning />
       </Canvas>
