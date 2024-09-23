@@ -82,7 +82,7 @@ const styles = `
     margin-bottom: 20px;
     position: absolute;
     bottom: 10%;
-    width: 50vw;
+    width: 90vw;
     transition: opacity 1s ease-in-out, visibility 1s ease-in-out;
   }
 
