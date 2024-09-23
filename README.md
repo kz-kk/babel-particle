@@ -6,5 +6,5 @@
 </div>
 ```
 - ボタン等はAnimationCanvasの最下部に記載
-- App.css
+
 
