@@ -6,6 +6,7 @@ import { createNoise3D } from 'simplex-noise';
 import { useSpring, animated, a } from '@react-spring/three';
 
 import circleImg from '../assets/circle.png';
+import CormorantGaramondLight from '../assets/CormorantGaramond-Light.ttf';
 
 // スタイルを直接JavaScriptに埋め込む
 const styles = `
@@ -326,9 +327,12 @@ function CameraControls({ position, up, target }) {
     const imgTex = useLoader(THREE.TextureLoader, circleImg);
     const noise3D = useMemo(() => createNoise3D(), []);
   
-    const count = 100000; // 粒子数を増やす
-    const radius = 3;
-    const innerRadius = 1.5; // 内側の円の半径
+    const count = 50000; // 粒子数を減らす
+    const radius = 4; // 半径を5から4に減らす
+    const innerRadius = 0.4; // 内側の円の半径も少し小さくする
+    const centerRadius = 0.08; // 中心の半径も少し小さくする
+    const vortexStrength = 0.1;
+    const pullStrength = 0.004;
   
     const positions = useMemo(() => {
       const positions = [];
@@ -337,15 +341,15 @@ function CameraControls({ position, up, target }) {
         const r = Math.sqrt(Math.random()) * (radius - innerRadius) + innerRadius;
         const x = r * Math.cos(angle);
         const z = r * Math.sin(angle);
-        const y = (Math.random() - 0.5) * 0.05; // より平面に近づける
+        const y = (Math.random() - 0.5) * 0.05;
         positions.push(x, y, z);
       }
       return new Float32Array(positions);
     }, [count, radius, innerRadius]);
   
-    const rotationSpeed = useRef(0.0008); // 初期回転速度を少し上げる（0.0005から0.0008に）
-    const maxRotationSpeed = 0.003; // 最大回転速度を少し上げる（0.002から0.003に）
-    const rotationAcceleration = 0.000003; // 加速度も少し上げる（0.000002から0.000003に）
+    const rotationSpeed = useRef(0.001);
+    const maxRotationSpeed = 0.006; // 最大回転速度を増加
+    const rotationAcceleration = 0.00001; // 回転加速度を増加
   
     useFrame(({ clock }) => {
       const time = clock.getElapsedTime();
@@ -357,27 +361,33 @@ function CameraControls({ position, up, target }) {
         let z = positionsArray[i3 + 2];
   
         const r = Math.sqrt(x * x + z * z);
-        const angle = Math.atan2(z, x);
+        let angle = Math.atan2(z, x);
         
-        // 回転速度を半径に応じて変える
-        const rotationSpeedValue = rotationSpeed.current * (1 - (r - innerRadius) / (radius - innerRadius));
-        const newAngle = angle + rotationSpeedValue * 0.02;
-  
-        // ノイズを使って微妙な揺らぎを加える
-        const noise = noise3D(x * 0.5, y * 0.5, z * 0.5 + time * 0.2) * 0.01;
-        
-        x = r * Math.cos(newAngle) + noise;
-        z = r * Math.sin(newAngle) + noise;
-        y += Math.sin(time * 2 + r * 2) * 0.001; // 上下の動きを小さくする
-  
-        // フェードアウト時の粒子の動き
-        if (fadeOut > 0) {
-          const fadeOutEffect = fadeOut * 0.2; // フェードアウト効果を強める
-          x += (Math.random() - 0.5) * fadeOutEffect;
-          y += (Math.random() - 0.5) * fadeOutEffect;
-          z += (Math.random() - 0.5) * fadeOutEffect;
+        // 渦巻き効果と中心への引力を強化
+        const vortexSpeed = Math.pow((radius - r) / radius, 1.5) * vortexStrength; // べき乗を1.5に変更
+        const rotationSpeedValue = rotationSpeed.current + vortexSpeed;
+        angle += rotationSpeedValue;
+
+        // 中心に向かって引き寄せる力を調整
+        const pullFactor = 1 - pullStrength * Math.pow(1 - r / radius, 1.5); // べき乗を1.5に変更
+        const newR = r * pullFactor;
+        x = newR * Math.cos(angle);
+        z = newR * Math.sin(angle);
+
+        // 中心に到達した粒子を外周に戻す
+        if (r < centerRadius) {
+          const newAngle = Math.random() * Math.PI * 2;
+          x = radius * Math.cos(newAngle);
+          z = radius * Math.sin(newAngle);
+          y = (Math.random() - 0.5) * 0.05;
         }
-  
+
+        // ノイズを使って微妙な揺らぎを加える
+        const noise = noise3D(x * 0.5, y * 0.5, z * 0.5 + time * 0.2) * 0.02; // ノイズの影響を減少
+        x += noise * (r / radius);
+        z += noise * (r / radius);
+        y += noise * 0.5;
+
         positionsArray[i3] = x;
         positionsArray[i3 + 1] = y;
         positionsArray[i3 + 2] = z;
@@ -390,11 +400,6 @@ function CameraControls({ position, up, target }) {
   
       // グループのスケールを更新
       groupRef.current.scale.set(scale, scale, scale);
-  
-      // フェードアウト時に回転速度を上げる
-      if (fadeOut > 0) {
-        groupRef.current.rotation.y += fadeOut * 0.05;
-      }
     });
   
     return (
@@ -428,8 +433,10 @@ function CameraControls({ position, up, target }) {
   function MagicCircleDecorations({ radius, innerRadius, fadeOut, fadeIn }) {
     const outerCircleRef = useRef();
     const innerCircleRef = useRef();
+    const middleCircleRef = useRef();
     const linesRef = useRef([]);
-  
+    const textRef = useRef([]);
+
     useEffect(() => {
       // 外側の円を描画
       const outerCircleGeometry = new THREE.BufferGeometry();
@@ -440,7 +447,7 @@ function CameraControls({ position, up, target }) {
       }
       outerCircleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(outerCircleVertices, 3));
       outerCircleRef.current.geometry = outerCircleGeometry;
-  
+
       // 内側の円を描画
       const innerCircleGeometry = new THREE.BufferGeometry();
       const innerCircleVertices = [];
@@ -450,27 +457,64 @@ function CameraControls({ position, up, target }) {
       }
       innerCircleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(innerCircleVertices, 3));
       innerCircleRef.current.geometry = innerCircleGeometry;
+
+      // 中間の円を描画
+      const middleRadius = (radius + innerRadius) / 2;
+      const middleCircleGeometry = new THREE.BufferGeometry();
+      const middleCircleVertices = [];
+      for (let i = 0; i <= 64; i++) {
+        const angle = (i / 64) * Math.PI * 2;
+        middleCircleVertices.push(middleRadius * Math.cos(angle), 0, middleRadius * Math.sin(angle));
+      }
+      middleCircleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(middleCircleVertices, 3));
+      middleCircleRef.current.geometry = middleCircleGeometry;
+
+      // ローマ数字のテキストを作成
+      const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+      const textMeshes = romanNumerals.map((numeral, index) => {
+        const angle = (index / 12) * Math.PI * 2;
+        const x = Math.cos(angle) * (radius * 0.85);
+        const z = Math.sin(angle) * (radius * 0.85);
+        
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 128;
+        canvas.height = 128;
+        
+        const fontSize = 64;
+        context.font = `${fontSize}px CormorantGaramond-Light`;
+        context.fillStyle = '#00ffff';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(numeral, 64, 64);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(0.5, 0.5, 1);
+        sprite.position.set(x, 0, z);
+
+        // スプライトを円周に沿って回転
+        sprite.rotation.y = -angle;
+
+        return sprite;
+      });
+      textRef.current = textMeshes;
     }, [radius, innerRadius]);
-  
+
     useFrame(() => {
-      const opacity = Math.min(fadeIn, Math.max(0, 1 - fadeOut * 2)); // フェードインとフェードアウトを組み合わせる
+      const opacity = Math.min(fadeIn, Math.max(0, 1 - fadeOut * 2));
       outerCircleRef.current.material.opacity = opacity;
       innerCircleRef.current.material.opacity = opacity;
+      middleCircleRef.current.material.opacity = opacity;
       linesRef.current.forEach(line => {
         line.material.opacity = opacity;
       });
-  
-      if (fadeOut) {
-        // 霧散エフェクト
-        const scatter = fadeOut * 1;
-        outerCircleRef.current.position.y = (Math.random() - 0.5) * scatter;
-        innerCircleRef.current.position.y = (Math.random() - 0.5) * scatter;
-        linesRef.current.forEach(line => {
-          line.position.y = (Math.random() - 0.5) * scatter;
-        });
-      }
+      textRef.current.forEach(sprite => {
+        sprite.material.opacity = opacity;
+      });
     });
-  
+
     return (
       <group>
         <line ref={outerCircleRef}>
@@ -479,25 +523,31 @@ function CameraControls({ position, up, target }) {
         <line ref={innerCircleRef}>
           <lineBasicMaterial color={0x00ffff} linewidth={2} transparent={true} />
         </line>
-        {[0, 60, 120, 180, 240, 300].map((angle, index) => (
+        <line ref={middleCircleRef}>
+          <lineBasicMaterial color={0x00ffff} linewidth={1} transparent={true} />
+        </line>
+        {[...Array(24)].map((_, index) => (
           <line key={index} ref={el => linesRef.current[index] = el}>
             <bufferGeometry>
               <bufferAttribute
                 attach="attributes-position"
                 count={2}
                 array={new Float32Array([
-                  Math.cos(angle * Math.PI / 180) * innerRadius,
+                  Math.cos(index * Math.PI / 12) * innerRadius,
                   0,
-                  Math.sin(angle * Math.PI / 180) * innerRadius,
-                  Math.cos(angle * Math.PI / 180) * radius,
+                  Math.sin(index * Math.PI / 12) * innerRadius,
+                  Math.cos(index * Math.PI / 12) * radius,
                   0,
-                  Math.sin(angle * Math.PI / 180) * radius,
+                  Math.sin(index * Math.PI / 12) * radius,
                 ])}
                 itemSize={3}
               />
             </bufferGeometry>
-            <lineBasicMaterial color={0x00ffff} linewidth={2} transparent={true} />
+            <lineBasicMaterial color={0x00ffff} linewidth={1} transparent={true} />
           </line>
+        ))}
+        {textRef.current.map((sprite, index) => (
+          <primitive key={index} object={sprite} />
         ))}
       </group>
     );
@@ -570,24 +620,48 @@ function CameraControls({ position, up, target }) {
   }
   
   // 新しい ParticleCube コンポーネントを追加
-  function ParticleCube({ size = 2, particleCount = 20000 }) {
+  function ParticleCube({ size = 2, particleCount = 20000, formationProgress = 0 }) {
     const pointsRef = useRef();
     const groupRef = useRef();
     const imgTex = useLoader(THREE.TextureLoader, circleImg);
     const noise3D = useMemo(() => createNoise3D(), []);
   
-    const positions = useMemo(() => {
+    const initialPositions = useMemo(() => {
       const positions = [];
       for (let i = 0; i < particleCount; i++) {
-        const face = Math.floor(Math.random() * 6);
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const r = Math.pow(Math.random(), 0.3) * size * 2; // 中心により多くの粒子を集める
+        const x = r * Math.sin(phi) * Math.cos(theta);
+        const y = r * Math.sin(phi) * Math.sin(theta);
+        const z = r * Math.cos(phi);
+        positions.push(x, y, z);
+      }
+      return new Float32Array(positions);
+    }, [size, particleCount]);
+  
+    const targetPositions = useMemo(() => {
+      const positions = [];
+      for (let i = 0; i < particleCount; i++) {
         let x, y, z;
-        switch (face) {
-          case 0: x = size / 2; y = (Math.random() - 0.5) * size; z = (Math.random() - 0.5) * size; break;
-          case 1: x = -size / 2; y = (Math.random() - 0.5) * size; z = (Math.random() - 0.5) * size; break;
-          case 2: x = (Math.random() - 0.5) * size; y = size / 2; z = (Math.random() - 0.5) * size; break;
-          case 3: x = (Math.random() - 0.5) * size; y = -size / 2; z = (Math.random() - 0.5) * size; break;
-          case 4: x = (Math.random() - 0.5) * size; y = (Math.random() - 0.5) * size; z = size / 2; break;
-          case 5: x = (Math.random() - 0.5) * size; y = (Math.random() - 0.5) * size; z = -size / 2; break;
+        if (i < particleCount * 0.7) { // 70%の粒子を表面に配置
+          const face = Math.floor(Math.random() * 6);
+          switch (face) {
+            case 0: x = size / 2; y = (Math.random() - 0.5) * size; z = (Math.random() - 0.5) * size; break;
+            case 1: x = -size / 2; y = (Math.random() - 0.5) * size; z = (Math.random() - 0.5) * size; break;
+            case 2: x = (Math.random() - 0.5) * size; y = size / 2; z = (Math.random() - 0.5) * size; break;
+            case 3: x = (Math.random() - 0.5) * size; y = -size / 2; z = (Math.random() - 0.5) * size; break;
+            case 4: x = (Math.random() - 0.5) * size; y = (Math.random() - 0.5) * size; z = size / 2; break;
+            case 5: x = (Math.random() - 0.5) * size; y = (Math.random() - 0.5) * size; z = -size / 2; break;
+          }
+        } else { // 残りの30%の粒子を内部に配置
+          x = (Math.random() - 0.5) * size;
+          y = (Math.random() - 0.5) * size;
+          z = (Math.random() - 0.5) * size;
+          const scale = Math.pow(Math.random(), 0.3); // 中心により多くの粒子を集める
+          x *= scale;
+          y *= scale;
+          z *= scale;
         }
         positions.push(x, y, z);
       }
@@ -599,27 +673,34 @@ function CameraControls({ position, up, target }) {
       const positionsArray = pointsRef.current.array;
       for (let i = 0; i < particleCount; i++) {
         const i3 = i * 3;
-        let x = positionsArray[i3];
-        let y = positionsArray[i3 + 1];
-        let z = positionsArray[i3 + 2];
-  
+        const initialX = initialPositions[i3];
+        const initialY = initialPositions[i3 + 1];
+        const initialZ = initialPositions[i3 + 2];
+        const targetX = targetPositions[i3];
+        const targetY = targetPositions[i3 + 1];
+        const targetZ = targetPositions[i3 + 2];
+
+        const easeInOutCubic = t => t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
+        const easedProgress = easeInOutCubic(formationProgress);
+
+        let x = initialX + (targetX - initialX) * easedProgress;
+        let y = initialY + (targetY - initialY) * easedProgress;
+        let z = initialZ + (targetZ - initialZ) * easedProgress;
+
         const noiseX = noise3D(x * 0.5, y * 0.5, z * 0.5 + time * 0.2) * 0.02;
         const noiseY = noise3D(y * 0.5, z * 0.5, x * 0.5 + time * 0.2) * 0.02;
         const noiseZ = noise3D(z * 0.5, x * 0.5, y * 0.5 + time * 0.2) * 0.02;
-  
-        // 粒子を立方体の表面に制限
-        const maxDist = size / 2;
-        if (Math.abs(x) === maxDist) x = Math.sign(x) * (maxDist + noiseX);
-        else if (Math.abs(y) === maxDist) y = Math.sign(y) * (maxDist + noiseY);
-        else if (Math.abs(z) === maxDist) z = Math.sign(z) * (maxDist + noiseZ);
-  
-        positionsArray[i3] = Math.max(-maxDist, Math.min(maxDist, x));
-        positionsArray[i3 + 1] = Math.max(-maxDist, Math.min(maxDist, y));
-        positionsArray[i3 + 2] = Math.max(-maxDist, Math.min(maxDist, z));
+
+        x += noiseX;
+        y += noiseY;
+        z += noiseZ;
+
+        positionsArray[i3] = x;
+        positionsArray[i3 + 1] = y;
+        positionsArray[i3 + 2] = z;
       }
       pointsRef.current.needsUpdate = true;
   
-      // 立方体全体の回転
       groupRef.current.rotation.x = Math.sin(time * 0.2) * 0.1;
       groupRef.current.rotation.y += 0.002;
       groupRef.current.rotation.z = Math.cos(time * 0.2) * 0.1;
@@ -632,8 +713,8 @@ function CameraControls({ position, up, target }) {
             <bufferAttribute
               ref={pointsRef}
               attach="attributes-position"
-              array={positions}
-              count={positions.length / 3}
+              array={initialPositions}
+              count={initialPositions.length / 3}
               itemSize={3}
             />
           </bufferGeometry>
@@ -743,6 +824,8 @@ function CameraControls({ position, up, target }) {
     const [magicCircleFadeIn, setMagicCircleFadeIn] = useState(0);
     const [magicCircleScale, setMagicCircleScale] = useState(1);
     const [showCube, setShowCube] = useState(false);
+    const [cubeFormationProgress, setCubeFormationProgress] = useState(0);
+    const [transitionProgress, setTransitionProgress] = useState(0);
   
     useEffect(() => {
       const handleResize = () => {
@@ -826,7 +909,7 @@ function CameraControls({ position, up, target }) {
           }, 50);
         }, 6000);
   
-        // MagicCircleの表示時間を2秒延長
+        // MagicCircleの表示時間を11秒に変更（1秒短く）
         const fadeOutTimer = setTimeout(() => {
           // 2秒かけてフェードアウト
           const fadeOutDuration = 2000;
@@ -854,11 +937,26 @@ function CameraControls({ position, up, target }) {
                 up: [0, 1, 0],
                 target: [0, 0, 0]
               });
+
+              // 立方体の形成アニメーション
+              const startTime = Date.now();
+              const formationDuration = 5000; // 5秒かけて形成
+
+              const cubeFormationAnimation = () => {
+                const elapsedTime = Date.now() - startTime;
+                const progress = Math.min(elapsedTime / formationDuration, 1);
+                setCubeFormationProgress(progress);
+
+                if (progress < 1) {
+                  requestAnimationFrame(cubeFormationAnimation);
+                }
+              };
+              cubeFormationAnimation();
             }
           };
   
           fadeOutAnimation();
-        }, 10000); // 10秒間表示した後にフェードアウト開始（2秒延長）
+        }, 11000); // 11秒間表示した後にフェードアウト開始（1秒短く）
   
         return () => {
           clearTimeout(step1);
@@ -907,12 +1005,12 @@ function CameraControls({ position, up, target }) {
             <MagicCircle 
               fadeOut={magicCircleFadeOut} 
               fadeIn={magicCircleFadeIn} 
-              scale={magicCircleScale}
+              scale={magicCircleScale * 0.8} // スケールを20%小さくする
             />
           )}
           {showCube && (
             <>
-              <ParticleCube size={3} particleCount={30000} />
+              <ParticleCube size={3} particleCount={30000} formationProgress={cubeFormationProgress} />
               <ParticleBackground count={80000} radius={5} height={10} speed={0.8} spiralSpeed={0.3} flowIntensity={0.05} />
             </>
           )}
